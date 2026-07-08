@@ -70,3 +70,44 @@ fn score_increases_with_similarity() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Value-exact to Bio.Align.PairwiseAligner (match=1, mismatch=-1,
+/// open_gap_score=-2, extend_gap_score=-1) on gapped alignments — the case the
+/// original ungapped-only tests never covered. Golden scores from Biopython
+/// 1.87. A gap of length k costs -2-(k-1); scores were verified over hundreds
+/// of random pairs against Bio.Align.
+#[test]
+fn gapped_scores_match_bio_align() {
+    let dir = std::env::temp_dir().join("align-compat-gapped");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let score = |file: &std::path::Path, local: bool| -> (i32, f64) {
+        let mut cmd = Command::new(ours());
+        cmd.arg(file);
+        if local {
+            cmd.arg("--local");
+        }
+        let out = cmd.output().unwrap();
+        assert!(out.status.success());
+        let s = String::from_utf8(out.stdout).unwrap();
+        let row = s.lines().nth(1).unwrap();
+        let f: Vec<&str> = row.split('\t').collect();
+        (f[2].parse().unwrap(), f[3].parse().unwrap())
+    };
+
+    // 4-base leading gap in b: global keeps the gap (-5), local trims it.
+    let lead = dir.join("lead.fa");
+    std::fs::write(&lead, ">a\nGGGGACGTACGT\n>b\nACGTACGT\n").unwrap();
+    assert_eq!(score(&lead, false).0, 3, "global leading-gap score");
+    assert_eq!(score(&lead, true).0, 8, "local should trim the leading gap");
+
+    // single internal insertion in b.
+    let ins = dir.join("ins.fa");
+    std::fs::write(&ins, ">a\nACGTACGTAC\n>b\nACGTTACGTAC\n").unwrap();
+    let (g, ident) = score(&ins, false);
+    assert_eq!(g, 8, "global single-insertion score");
+    assert!((ident - 10.0 / 11.0).abs() < 0.001, "identity {ident}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
