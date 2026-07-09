@@ -1,6 +1,6 @@
 [package]
 name = "rsomics-align-score"
-version = "0.1.1"
+version = "0.1.2"
 description = "Pairwise sequence alignment — Needleman-Wunsch (global) or Smith-Waterman (local)"
 edition = "2024"
 rust-version = "1.91"
